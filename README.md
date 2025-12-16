@@ -28,6 +28,8 @@ On payday, all required expenses are handled immediately:
 - Utilities
 - Food (groceries)
 - Transportation
+- Revolving Debt (required payments and intentional payoff)
+- Savings
 
 Once these are funded, they are considered safe for the pay period. No daily decision should threaten them.
 
@@ -59,6 +61,40 @@ The goal is awareness, not restriction.
 
 The system supports decisions — it does not replace them.
 
+## A Note on Debt and Credit Cards
+
+Spend & Send strongly prioritizes eliminating consumer debt. Carrying balances increases financial risk, reduces flexibility, and undermines long-term progress. Paying down debt completely is a core goal of the Spend & Send Method.
+
+That said, credit cards themselves are not treated as inherently bad.
+
+Credit cards are viewed as tools, not permissions. When used intentionally and paid off in full, they can offer convenience, protection, or rewards without compromising financial safety.
+
+However, Spend & Send never normalizes:
+
+- Carrying balances month-to-month
+- Spending money before it is accounted for
+- Using credit to bypass Four Walls or per diem limits
+
+All spending, regardless of payment method, is logged at the moment it occurs and counted against the appropriate category and daily per diem.
+
+If credit card usage begins to interfere with:
+
+- Securing the Four Walls
+- Respecting the per diem
+- Making consistent debt progress
+
+Spend & Send will surface this clearly and encourage corrective action.
+
+The goal is not abstinence — it is awareness, discipline, and freedom without regret.
+
+## Debt Elimination Strategy
+
+Spend & Send does not prescribe a specific debt-elimination strategy.
+
+The method was influenced by widely known personal finance principles, including Dave Ramsey's Baby Steps and debt snowball approach. Users seeking a structured, step-by-step debt payoff framework may find Ramsey's work helpful.
+
+Spend & Send focuses on day-to-day budgeting clarity and intentional spending, regardless of the broader financial path a user chooses.
+
 ## What Success Looks Like
 
 **Success is not:**
@@ -80,3 +116,4 @@ If your Four Walls are secure and your per diem is respected, you are financiall
 
 Spend & Send exists to make that safety visible, daily.
 # spend-and-send
+
