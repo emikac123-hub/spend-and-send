@@ -183,39 +183,69 @@ ${userMessage}`;
 
   // Call the Claude API via Vercel proxy
   private async callClaudeAPI(): Promise<AssistantResponse> {
-    // TODO: Replace with actual API call to your Vercel proxy
-    // 
-    // Example implementation:
-    // const response = await fetch(`${API_BASE_URL}/chat`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     model: MODEL,
-    //     system: SYSTEM_PROMPT,
-    //     messages: this.conversationHistory,
-    //     max_tokens: 1024,
-    //   }),
-    // });
-    //
-    // if (!response.ok) {
-    //   throw new Error(`API error: ${response.status}`);
-    // }
-    //
-    // const data = await response.json();
-    // return JSON.parse(data.content[0].text);
+    try {
+      console.log('Calling Claude API...');
+      
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          system: SYSTEM_PROMPT,
+          messages: this.conversationHistory,
+          max_tokens: 1024,
+        }),
+      });
 
-    // Placeholder implementation for development
-    console.log('Sending to Claude:', this.conversationHistory);
-    
-    return {
-      message: 'This is a placeholder response. Implement the actual Claude API call.',
-      action: undefined,
-      parsed_transaction: undefined,
-      insight: undefined,
-      chart_config: undefined,
-    };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error:', response.status, errorText);
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Claude response:', data);
+
+      // Extract the text content from Claude's response
+      const textContent = data.content?.[0]?.text;
+      
+      if (!textContent) {
+        throw new Error('No text content in response');
+      }
+
+      // Try to parse as JSON (structured response)
+      try {
+        const parsed = JSON.parse(textContent);
+        return {
+          message: parsed.message || textContent,
+          action: parsed.action || undefined,
+          parsed_transaction: parsed.parsed_transaction || undefined,
+          insight: parsed.insight || undefined,
+          chart_config: parsed.chart_config || undefined,
+        };
+      } catch {
+        // If not valid JSON, return as plain message
+        return {
+          message: textContent,
+          action: undefined,
+          parsed_transaction: undefined,
+          insight: undefined,
+          chart_config: undefined,
+        };
+      }
+    } catch (error) {
+      console.error('Claude API call failed:', error);
+      // Return a friendly error message
+      return {
+        message: "I'm having trouble connecting right now. Please try again in a moment.",
+        action: undefined,
+        parsed_transaction: undefined,
+        insight: undefined,
+        chart_config: undefined,
+      };
+    }
   }
 
   // Parse a single transaction input (simplified call)
