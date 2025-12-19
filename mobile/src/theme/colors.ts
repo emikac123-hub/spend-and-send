@@ -1,8 +1,9 @@
 // Spend & Send - Color Theme
 //
 // Calm, muted colors that reduce financial anxiety
+// Supports both light and dark modes
 
-export const colors = {
+export const lightColors = {
   // Primary - Muted Green (cash/safety)
   primary: '#6B9B7A',
   primaryLight: '#8FB89D',
@@ -48,6 +49,58 @@ export const colors = {
   shadow: 'rgba(0, 0, 0, 0.08)',
 };
 
+export const darkColors = {
+  // Primary - Muted Green (slightly brighter for dark mode)
+  primary: '#7AAF8A',
+  primaryLight: '#8FB89D',
+  primaryMuted: '#5A7A64',
+  primaryBackground: '#1A2E22',
+
+  // Secondary - Calm Blue
+  secondary: '#6B8B9C',
+  secondaryLight: '#7A9BAC',
+
+  // Backgrounds
+  background: '#0D1110',
+  surface: '#1A1F1C',
+  surfaceElevated: '#242A26',
+
+  // Text
+  textPrimary: '#E8F0EB',
+  textSecondary: '#A8B5AD',
+  textMuted: '#6B7A72',
+  textInverse: '#1A1F1C',
+
+  // Status (Apple-like - same in dark mode)
+  safe: '#30D158',        // Apple green dark mode
+  caution: '#FF9F0A',     // Apple orange dark mode
+  warning: '#FF453A',     // Apple red dark mode
+
+  // Money green
+  moneyGreen: '#30D158',  // Apple system green dark mode
+
+  // Categories
+  fourWalls: '#6B8B9C',
+  discretionary: '#9B8BB5',
+
+  // Borders & Dividers
+  border: '#2A3530',
+  divider: '#242A26',
+
+  // Chat
+  userBubble: '#1A2E22',
+  assistantBubble: '#242A26',
+
+  // Shadows
+  shadow: 'rgba(0, 0, 0, 0.3)',
+};
+
+// Type for colors object
+export type Colors = typeof lightColors;
+
+// Default export (will be overridden by context)
+export const colors = lightColors;
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -82,4 +135,4 @@ export const typography = {
   bold: '700' as const,
 };
 
-export default { colors, spacing, borderRadius, typography };
+export default { lightColors, darkColors, colors, spacing, borderRadius, typography };

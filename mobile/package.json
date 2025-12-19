@@ -8,11 +8,13 @@
     "ios": "expo start --ios"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "^8.4.4",
     "@react-navigation/bottom-tabs": "^6.5.0",
     "@react-navigation/native": "^6.1.0",
     "@react-navigation/native-stack": "^6.9.0",
     "date-fns": "^3.6.0",
     "expo": "~54.0.0",
+    "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",

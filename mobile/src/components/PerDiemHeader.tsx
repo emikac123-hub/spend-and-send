@@ -12,7 +12,7 @@ import {
   PanResponder,
   TouchableOpacity,
 } from 'react-native';
-import { colors, spacing, borderRadius, typography } from '../theme/colors';
+import { useTheme } from '../theme';
 
 interface PerDiemHeaderProps {
   perDiem: number;
@@ -32,6 +32,7 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
   isCollapsed,
   onToggle,
 }) => {
+  const { colors, isDark } = useTheme();
   const animatedHeight = useRef(new Animated.Value(isCollapsed ? COLLAPSED_HEIGHT : HEADER_HEIGHT)).current;
   const animatedOpacity = useRef(new Animated.Value(isCollapsed ? 0 : 1)).current;
   const collapsedOpacity = useRef(new Animated.Value(isCollapsed ? 1 : 0)).current;
@@ -86,7 +87,15 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
 
   return (
     <Animated.View
-      style={[styles.container, { height: animatedHeight }]}
+      style={[
+        styles.container,
+        { 
+          height: animatedHeight,
+          backgroundColor: colors.surface,
+          shadowColor: isDark ? '#000' : '#000',
+          shadowOpacity: isDark ? 0.3 : 0.08,
+        }
+      ]}
       {...panResponder.panHandlers}
     >
       <TouchableOpacity
@@ -97,48 +106,48 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
         {/* Collapsed View */}
         <Animated.View style={[styles.collapsedContent, { opacity: collapsedOpacity }]}>
           <View style={styles.collapsedInner}>
-            <Text style={styles.collapsedLabel}>Today</Text>
-            <Text style={styles.collapsedAmount}>${remaining.toFixed(2)}</Text>
-            <Text style={styles.collapsedOf}>left</Text>
+            <Text style={[styles.collapsedLabel, { color: colors.textSecondary }]}>Today</Text>
+            <Text style={[styles.collapsedAmount, { color: colors.moneyGreen }]}>${remaining.toFixed(2)}</Text>
+            <Text style={[styles.collapsedOf, { color: colors.textMuted }]}>left</Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
         </Animated.View>
 
         {/* Expanded View */}
         <Animated.View style={[styles.expandedContent, { opacity: animatedOpacity }]}>
           {/* Top label */}
-          <Text style={styles.topLabel}>Today's Budget</Text>
+          <Text style={[styles.topLabel, { color: colors.textSecondary }]}>Today's Budget</Text>
           
           {/* Main amount - GREEN */}
           <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <Text style={styles.mainAmount}>{remaining.toFixed(2)}</Text>
+            <Text style={[styles.currencySymbol, { color: colors.moneyGreen }]}>$</Text>
+            <Text style={[styles.mainAmount, { color: colors.moneyGreen }]}>{remaining.toFixed(2)}</Text>
           </View>
           
           {/* Subtitle */}
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             of ${perDiem.toFixed(2)} per day
           </Text>
 
           {/* Divider */}
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           {/* Bottom row */}
           <View style={styles.bottomRow}>
             <View style={styles.bottomItem}>
-              <Text style={styles.bottomValue}>{daysUntilPayday}</Text>
-              <Text style={styles.bottomLabel}>days left</Text>
+              <Text style={[styles.bottomValue, { color: colors.textPrimary }]}>{daysUntilPayday}</Text>
+              <Text style={[styles.bottomLabel, { color: colors.textMuted }]}>days left</Text>
             </View>
-            <View style={styles.bottomDivider} />
+            <View style={[styles.bottomDivider, { backgroundColor: colors.border }]} />
             <View style={styles.bottomItem}>
-              <Text style={styles.bottomValue}>{getStatusText()}</Text>
-              <Text style={styles.bottomLabel}>status</Text>
+              <Text style={[styles.bottomValue, { color: colors.textPrimary }]}>{getStatusText()}</Text>
+              <Text style={[styles.bottomLabel, { color: colors.textMuted }]}>status</Text>
             </View>
           </View>
 
           {/* Collapse hint */}
           <View style={styles.hintContainer}>
-            <View style={styles.hintPill} />
+            <View style={[styles.hintPill, { backgroundColor: colors.border }]} />
           </View>
         </Animated.View>
       </TouchableOpacity>
@@ -148,12 +157,9 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 8,
     overflow: 'hidden',
@@ -182,21 +188,17 @@ const styles = StyleSheet.create({
   collapsedLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: colors.textSecondary,
   },
   collapsedAmount: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#34C759', // Apple green
   },
   collapsedOf: {
     fontSize: 15,
     fontWeight: '400',
-    color: colors.textMuted,
   },
   chevron: {
     fontSize: 24,
-    color: colors.textMuted,
     transform: [{ rotate: '90deg' }],
   },
 
@@ -211,7 +213,6 @@ const styles = StyleSheet.create({
   topLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,
@@ -223,26 +224,22 @@ const styles = StyleSheet.create({
   currencySymbol: {
     fontSize: 28,
     fontWeight: '600',
-    color: '#34C759', // Apple green
     marginTop: 8,
     marginRight: 2,
   },
   mainAmount: {
     fontSize: 56,
     fontWeight: '700',
-    color: '#34C759', // Apple green
     letterSpacing: -2,
   },
   subtitle: {
     fontSize: 15,
     fontWeight: '400',
-    color: colors.textSecondary,
     marginTop: 2,
   },
   divider: {
     width: 40,
     height: 1,
-    backgroundColor: colors.border,
     marginVertical: 16,
   },
   bottomRow: {
@@ -257,18 +254,15 @@ const styles = StyleSheet.create({
   bottomValue: {
     fontSize: 17,
     fontWeight: '600',
-    color: colors.textPrimary,
   },
   bottomLabel: {
     fontSize: 12,
     fontWeight: '400',
-    color: colors.textMuted,
     marginTop: 2,
   },
   bottomDivider: {
     width: 1,
     height: 28,
-    backgroundColor: colors.border,
   },
   hintContainer: {
     position: 'absolute',
@@ -281,7 +275,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
   },
 });
 

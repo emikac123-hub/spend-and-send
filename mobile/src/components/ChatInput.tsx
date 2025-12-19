@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { colors, spacing, borderRadius, typography } from '../theme/colors';
+import { useTheme } from '../theme';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -22,6 +22,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   isLoading = false,
   placeholder = 'Log spending or ask a question...',
 }) => {
+  const { colors, spacing, borderRadius, typography } = useTheme();
   const [message, setMessage] = useState('');
 
   const handleSend = () => {
@@ -36,10 +37,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <View style={styles.container}>
-        <View style={styles.inputContainer}>
+      <View style={[
+        styles.container,
+        { 
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          paddingBottom: spacing.lg,
+        }
+      ]}>
+        <View style={[
+          styles.inputContainer,
+          { 
+            backgroundColor: colors.background,
+            borderRadius: borderRadius.xl,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+          }
+        ]}>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { 
+                fontSize: typography.md,
+                color: colors.textPrimary,
+                paddingVertical: spacing.sm,
+              }
+            ]}
             value={message}
             onChangeText={setMessage}
             placeholder={placeholder}
@@ -53,7 +79,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (!message.trim() || isLoading) && styles.sendButtonDisabled,
+              { 
+                backgroundColor: message.trim() && !isLoading 
+                  ? colors.primaryBackground 
+                  : colors.background,
+              }
             ]}
             onPress={handleSend}
             disabled={!message.trim() || isLoading}
@@ -74,41 +104,23 @@ const SendIcon: React.FC<{ color: string }> = ({ color }) => (
 );
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.lg,
-  },
+  container: {},
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.xl,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
     minHeight: 44,
   },
   input: {
     flex: 1,
-    fontSize: typography.md,
-    color: colors.textPrimary,
     maxHeight: 100,
-    paddingVertical: spacing.sm,
   },
   sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primaryBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: spacing.sm,
-  },
-  sendButtonDisabled: {
-    backgroundColor: colors.background,
+    marginLeft: 8,
   },
   sendIcon: {
     width: 20,

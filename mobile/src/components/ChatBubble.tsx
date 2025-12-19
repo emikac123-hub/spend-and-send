@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius, typography } from '../theme/colors';
+import { useTheme } from '../theme';
 
 interface ChatBubbleProps {
   message: string;
@@ -15,15 +15,47 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   isUser,
   timestamp,
 }) => {
+  const { colors, spacing, borderRadius, typography } = useTheme();
+
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>
+    <View style={[
+      styles.container,
+      { marginVertical: spacing.xs, marginHorizontal: spacing.md },
+      isUser ? styles.userContainer : styles.assistantContainer
+    ]}>
+      <View style={[
+        styles.bubble,
+        { 
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: borderRadius.lg,
+        },
+        isUser 
+          ? { backgroundColor: colors.userBubble, borderBottomRightRadius: spacing.xs }
+          : { 
+              backgroundColor: colors.assistantBubble, 
+              borderBottomLeftRadius: spacing.xs,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }
+      ]}>
+        <Text style={[
+          styles.message,
+          { fontSize: typography.md, color: colors.textPrimary }
+        ]}>
           {message}
         </Text>
       </View>
       {timestamp && (
-        <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
+        <Text style={[
+          styles.timestamp,
+          { 
+            fontSize: typography.xs, 
+            marginTop: spacing.xs,
+            color: colors.textMuted,
+            textAlign: isUser ? 'right' : 'left',
+          }
+        ]}>
           {timestamp}
         </Text>
       )}
@@ -33,8 +65,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: spacing.xs,
-    marginHorizontal: spacing.md,
     maxWidth: '80%',
   },
   userContainer: {
@@ -43,43 +73,11 @@ const styles = StyleSheet.create({
   assistantContainer: {
     alignSelf: 'flex-start',
   },
-  bubble: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
-  },
-  userBubble: {
-    backgroundColor: colors.userBubble,
-    borderBottomRightRadius: spacing.xs,
-  },
-  assistantBubble: {
-    backgroundColor: colors.assistantBubble,
-    borderBottomLeftRadius: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  bubble: {},
   message: {
-    fontSize: typography.md,
     lineHeight: 22,
   },
-  userMessage: {
-    color: colors.textPrimary,
-  },
-  assistantMessage: {
-    color: colors.textPrimary,
-  },
-  timestamp: {
-    fontSize: typography.xs,
-    marginTop: spacing.xs,
-  },
-  userTimestamp: {
-    color: colors.textMuted,
-    textAlign: 'right',
-  },
-  assistantTimestamp: {
-    color: colors.textMuted,
-    textAlign: 'left',
-  },
+  timestamp: {},
 });
 
 export default ChatBubble;

@@ -28,8 +28,15 @@ export const UserService = {
     return result.rows[0] || null;
   },
 
+  async getUserByEmail(email: string): Promise<User | null> {
+    const result = await database.executeSql('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+    return result.rows[0] || null;
+  },
+
   async createUser(email?: string, name?: string, currency: string = 'USD'): Promise<User> {
     const id = generateUUID();
+    const data = { id, email, name, currency };
+    console.log('📝 INSERT INTO users:', JSON.stringify(data, null, 2));
     await database.executeSql(
       'INSERT INTO users (id, email, name, currency) VALUES (?, ?, ?, ?)',
       [id, email, name, currency]
@@ -88,6 +95,19 @@ export const PayPeriodService = {
     );
     const perDiem = discretionaryPool / daysUntilPayday;
 
+    const data = {
+      id,
+      user_id: userId,
+      start_date: startDate,
+      end_date: endDate,
+      income_amount: incomeAmount,
+      four_walls_total: fourWallsTotal,
+      discretionary_pool: discretionaryPool,
+      per_diem: perDiem,
+      days_until_payday: daysUntilPayday,
+      is_active: 1,
+    };
+    console.log('📝 INSERT INTO pay_periods:', JSON.stringify(data, null, 2));
     await database.executeSql(
       `INSERT INTO pay_periods 
        (id, user_id, start_date, end_date, income_amount, four_walls_total, discretionary_pool, per_diem, days_until_payday, is_active) 
@@ -113,18 +133,26 @@ export const PayPeriodService = {
   async updatePayPeriod(id: string, updates: Partial<PayPeriod>): Promise<void> {
     const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
     const values = [...Object.values(updates), id];
-    await database.executeSql(`UPDATE pay_periods SET ${fields} WHERE id = ?`, values);
+    await database.executeSql(
+      `UPDATE pay_periods SET ${fields} WHERE id = ?`,
+      values
+    );
+  },
+
+  async getPayPeriodById(id: string): Promise<PayPeriod | null> {
+    const result = await database.executeSql('SELECT * FROM pay_periods WHERE id = ?', [id]);
+    return result.rows[0] || null;
   },
 };
 
 // ============================================
-// Four Walls Allocations
+// Four Walls Operations
 // ============================================
 
 export const FourWallsService = {
   async getAllocations(payPeriodId: string): Promise<FourWallsAllocation[]> {
     const result = await database.executeSql(
-      'SELECT * FROM four_walls_allocations WHERE pay_period_id = ? ORDER BY category',
+      'SELECT * FROM four_walls_allocations WHERE pay_period_id = ?',
       [payPeriodId]
     );
     return result.rows;
@@ -136,8 +164,16 @@ export const FourWallsService = {
     allocatedAmount: number
   ): Promise<FourWallsAllocation> {
     const id = generateUUID();
+    const data = {
+      id,
+      pay_period_id: payPeriodId,
+      category,
+      allocated_amount: allocatedAmount,
+      spent_amount: 0,
+    };
+    console.log('📝 INSERT INTO four_walls_allocations:', JSON.stringify(data, null, 2));
     await database.executeSql(
-      'INSERT INTO four_walls_allocations (id, pay_period_id, category, allocated_amount) VALUES (?, ?, ?, ?)',
+      'INSERT INTO four_walls_allocations (id, pay_period_id, category, allocated_amount, spent_amount) VALUES (?, ?, ?, ?, 0)',
       [id, payPeriodId, category, allocatedAmount]
     );
     return {
@@ -148,13 +184,6 @@ export const FourWallsService = {
       spent_amount: 0,
       created_at: new Date().toISOString(),
     };
-  },
-
-  async updateSpentAmount(id: string, spentAmount: number): Promise<void> {
-    await database.executeSql(
-      'UPDATE four_walls_allocations SET spent_amount = ? WHERE id = ?',
-      [spentAmount, id]
-    );
   },
 
   async addToSpentAmount(payPeriodId: string, category: string, amount: number): Promise<void> {
@@ -170,26 +199,26 @@ export const FourWallsService = {
 // ============================================
 
 export const CategoryService = {
-  async getAllCategories(): Promise<Category[]> {
-    const result = await database.executeSql(
-      'SELECT * FROM categories WHERE is_active = 1 ORDER BY type, name'
-    );
+  async getAllCategories(userId?: string): Promise<Category[]> {
+    const sql = userId
+      ? 'SELECT * FROM categories WHERE (user_id = ? OR user_id IS NULL) AND is_active = 1 ORDER BY type, name'
+      : 'SELECT * FROM categories WHERE is_active = 1 ORDER BY type, name';
+    const params = userId ? [userId] : [];
+    const result = await database.executeSql(sql, params);
     return result.rows;
   },
 
-  async getCategoriesByType(type: 'four_walls' | 'discretionary'): Promise<Category[]> {
-    const result = await database.executeSql(
-      'SELECT * FROM categories WHERE type = ? AND is_active = 1 ORDER BY name',
-      [type]
-    );
-    return result.rows;
+  async getCategoryById(id: string): Promise<Category | null> {
+    const result = await database.executeSql('SELECT * FROM categories WHERE id = ?', [id]);
+    return result.rows[0] || null;
   },
 
-  async getCategoryByName(name: string): Promise<Category | null> {
-    const result = await database.executeSql(
-      'SELECT * FROM categories WHERE LOWER(name) = LOWER(?) AND is_active = 1 LIMIT 1',
-      [name]
-    );
+  async getCategoryByName(name: string, userId?: string): Promise<Category | null> {
+    const sql = userId
+      ? 'SELECT * FROM categories WHERE name = ? AND (user_id = ? OR user_id IS NULL) AND is_active = 1 LIMIT 1'
+      : 'SELECT * FROM categories WHERE name = ? AND is_active = 1 LIMIT 1';
+    const params = userId ? [name, userId] : [name];
+    const result = await database.executeSql(sql, params);
     return result.rows[0] || null;
   },
 
@@ -199,6 +228,15 @@ export const CategoryService = {
     userId?: string
   ): Promise<Category> {
     const id = generateUUID();
+    const data = {
+      id,
+      user_id: userId,
+      name,
+      type,
+      is_default: 0,
+      is_active: 1,
+    };
+    console.log('📝 INSERT INTO categories:', JSON.stringify(data, null, 2));
     await database.executeSql(
       'INSERT INTO categories (id, user_id, name, type, is_default, is_active) VALUES (?, ?, ?, ?, 0, 1)',
       [id, userId, name, type]
@@ -269,6 +307,21 @@ export const TransactionService = {
     const time = new Date().toISOString().split('T')[1].split('.')[0];
     const isFourWalls = type === 'four_walls' ? 1 : 0;
 
+    const data = {
+      id,
+      user_id: userId,
+      pay_period_id: payPeriodId,
+      category_id: categoryId,
+      amount,
+      description,
+      merchant,
+      transaction_date: date,
+      transaction_time: time,
+      type,
+      is_four_walls: isFourWalls,
+      notes,
+    };
+    console.log('📝 INSERT INTO transactions:', JSON.stringify(data, null, 2));
     await database.executeSql(
       `INSERT INTO transactions 
        (id, user_id, pay_period_id, category_id, amount, description, merchant, transaction_date, transaction_time, type, is_four_walls, notes)
@@ -346,12 +399,49 @@ export const PerDiemService = {
     return result.rows[0] || null;
   },
 
+  async getYesterdaysPerDiem(payPeriodId: string): Promise<PerDiemTracking | null> {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const result = await database.executeSql(
+      'SELECT * FROM per_diem_tracking WHERE pay_period_id = ? AND tracking_date = ?',
+      [payPeriodId, yesterdayStr]
+    );
+    return result.rows[0] || null;
+  },
+
   async getPerDiemHistory(payPeriodId: string): Promise<PerDiemTracking[]> {
     const result = await database.executeSql(
       'SELECT * FROM per_diem_tracking WHERE pay_period_id = ? ORDER BY tracking_date DESC',
       [payPeriodId]
     );
     return result.rows;
+  },
+
+  // Ensure today's per diem exists, creating it with rollover if needed
+  async ensureTodaysPerDiem(payPeriodId: string, perDiemAmount: number): Promise<PerDiemTracking> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if today's record exists
+    let todaysPerDiem = await this.getTodaysPerDiem(payPeriodId);
+    
+    if (!todaysPerDiem) {
+      // Get yesterday's remaining amount for rollover
+      const yesterdaysPerDiem = await this.getYesterdaysPerDiem(payPeriodId);
+      const rollover = yesterdaysPerDiem?.remaining_amount || 0;
+      
+      // Create today's per diem with rollover
+      todaysPerDiem = await this.createOrUpdateTodaysPerDiem(
+        payPeriodId,
+        perDiemAmount,
+        0, // spentToday starts at 0
+        rollover
+      );
+      
+      console.log(`📅 New day detected! Rolled over $${rollover.toFixed(2)} from yesterday.`);
+    }
+    
+    return todaysPerDiem;
   },
 
   async createOrUpdateTodaysPerDiem(
@@ -374,24 +464,41 @@ export const PerDiemService = {
     if (updateResult.rowsAffected === 0) {
       // Insert new record
       const id = generateUUID();
+      const data = {
+        id,
+        pay_period_id: payPeriodId,
+        tracking_date: today,
+        per_diem_amount: perDiemAmount,
+        remaining_amount: remaining,
+        spent_today: spentToday,
+        rollover_from_previous: rolloverFromPrevious,
+      };
+      console.log('📝 INSERT INTO per_diem_tracking:', JSON.stringify(data, null, 2));
       await database.executeSql(
         `INSERT INTO per_diem_tracking 
          (id, pay_period_id, tracking_date, per_diem_amount, remaining_amount, spent_today, rollover_from_previous)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [id, payPeriodId, today, perDiemAmount, remaining, spentToday, rolloverFromPrevious]
       );
+      
+      return {
+        id,
+        pay_period_id: payPeriodId,
+        tracking_date: today,
+        per_diem_amount: perDiemAmount,
+        remaining_amount: remaining,
+        spent_today: spentToday,
+        rollover_from_previous: rolloverFromPrevious,
+        created_at: new Date().toISOString(),
+      };
     }
 
-    return {
-      id: generateUUID(),
-      pay_period_id: payPeriodId,
-      tracking_date: today,
-      per_diem_amount: perDiemAmount,
-      remaining_amount: remaining,
-      spent_today: spentToday,
-      rollover_from_previous: rolloverFromPrevious,
-      created_at: new Date().toISOString(),
-    };
+    // Return updated record
+    const result = await database.executeSql(
+      'SELECT * FROM per_diem_tracking WHERE pay_period_id = ? AND tracking_date = ?',
+      [payPeriodId, today]
+    );
+    return result.rows[0];
   },
 
   async addSpending(payPeriodId: string, amount: number): Promise<void> {
@@ -431,76 +538,74 @@ export const SettingsService = {
     return result.rows[0]?.value || null;
   },
 
+  async setSetting(userId: string, key: string, value: string): Promise<void> {
+    const id = generateUUID();
+    const data = {
+      id,
+      user_id: userId,
+      key,
+      value,
+    };
+    console.log('📝 INSERT OR REPLACE INTO settings:', JSON.stringify(data, null, 2));
+    await database.executeSql(
+      `INSERT OR REPLACE INTO settings (id, user_id, key, value, updated_at) 
+       VALUES (COALESCE((SELECT id FROM settings WHERE user_id = ? AND key = ?), ?), ?, ?, ?, datetime('now'))`,
+      [userId, key, id, userId, key, value]
+    );
+  },
+
   async getAllSettings(userId: string): Promise<Record<string, string>> {
     const result = await database.executeSql(
       'SELECT key, value FROM settings WHERE user_id = ?',
       [userId]
     );
-    return result.rows.reduce((acc: Record<string, string>, row: Setting) => {
-      acc[row.key] = row.value;
-      return acc;
-    }, {});
-  },
-
-  async setSetting(userId: string, key: string, value: string): Promise<void> {
-    await database.executeSql(
-      `INSERT INTO settings (id, user_id, key, value) VALUES (?, ?, ?, ?)
-       ON CONFLICT(user_id, key) DO UPDATE SET value = ?, updated_at = datetime('now')`,
-      [generateUUID(), userId, key, value, value]
-    );
-  },
-
-  async deleteSetting(userId: string, key: string): Promise<void> {
-    await database.executeSql(
-      'DELETE FROM settings WHERE user_id = ? AND key = ?',
-      [userId, key]
-    );
+    const settings: Record<string, string> = {};
+    result.rows.forEach((row: any) => {
+      settings[row.key] = row.value;
+    });
+    return settings;
   },
 };
 
 // ============================================
-// Summary & Analytics
+// Analytics Operations
 // ============================================
 
 export const AnalyticsService = {
   async getPeriodSummary(userId: string, payPeriodId: string): Promise<PeriodSummary> {
-    const payPeriod = await PayPeriodService.getActivePayPeriod(userId);
+    const payPeriod = await PayPeriodService.getPayPeriodById(payPeriodId);
     if (!payPeriod) {
-      throw new Error('No active pay period found');
+      throw new Error('Pay period not found');
     }
 
-    const categoryTotals = await TransactionService.getCategoryTotals(payPeriodId);
-    const todaysPerDiem = await PerDiemService.getTodaysPerDiem(payPeriodId);
+    const fourWalls = await FourWallsService.getAllocations(payPeriodId);
+    const transactions = await TransactionService.getTransactionsByPeriod(payPeriodId);
+    const discretionaryTotal = await TransactionService.getDiscretionaryTotal(payPeriodId);
     const perDiemStats = await PerDiemService.getDaysUnderOverPerDiem(payPeriodId);
 
-    const fourWallsBreakdown = categoryTotals
-      .filter(c => c.type === 'four_walls')
-      .map(c => ({ category: c.name, amount: c.total }));
-
-    const discretionaryBreakdown = categoryTotals
-      .filter(c => c.type === 'discretionary')
-      .map(c => ({ category: c.name, amount: c.total }));
+    const fourWallsSpent = fourWalls.reduce((sum, fw) => sum + fw.spent_amount, 0);
 
     return {
+      pay_period_id: payPeriodId,
       income: payPeriod.income_amount,
-      four_walls_total: fourWallsBreakdown.reduce((sum, c) => sum + c.amount, 0),
-      four_walls_breakdown: fourWallsBreakdown,
-      discretionary_total: discretionaryBreakdown.reduce((sum, c) => sum + c.amount, 0),
-      discretionary_breakdown: discretionaryBreakdown,
+      four_walls_allocated: payPeriod.four_walls_total,
+      four_walls_spent: fourWallsSpent,
+      discretionary_pool: payPeriod.discretionary_pool,
+      discretionary_spent: discretionaryTotal,
       per_diem: payPeriod.per_diem,
-      per_diem_remaining_today: todaysPerDiem?.remaining_amount || payPeriod.per_diem,
-      days_until_payday: payPeriod.days_until_payday,
       days_under_per_diem: perDiemStats.under,
       days_over_per_diem: perDiemStats.over,
+      days_on_target: perDiemStats.on_target,
+      transaction_count: transactions.length,
     };
   },
 };
 
 // ============================================
-// Export All Services
+// Export
 // ============================================
 
-export const DataService = {
+const DataService = {
   User: UserService,
   PayPeriod: PayPeriodService,
   FourWalls: FourWallsService,

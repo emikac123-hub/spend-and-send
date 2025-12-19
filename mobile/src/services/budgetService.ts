@@ -20,6 +20,7 @@ import {
 class BudgetService {
   private currentUserId: string | null = null;
   private currentPayPeriodId: string | null = null;
+  private lastProcessedDate: string | null = null;
 
   // Initialize the service with user context
   async initialize(): Promise<void> {
@@ -29,6 +30,8 @@ class BudgetService {
       const payPeriod = await DataService.PayPeriod.getActivePayPeriod(user.id);
       if (payPeriod) {
         this.currentPayPeriodId = payPeriod.id;
+        // Ensure today's per diem exists on initialization
+        await this.ensureTodaysPerDiemInitialized();
       }
     }
   }
@@ -49,17 +52,71 @@ class BudgetService {
     return this.currentPayPeriodId;
   }
 
+  // Ensure today's per diem is initialized (with rollover if new day)
+  private async ensureTodaysPerDiemInitialized(): Promise<void> {
+    try {
+      const payPeriodId = this.getPayPeriodId();
+      const payPeriod = await DataService.PayPeriod.getActivePayPeriod(this.getUserId());
+      
+      if (payPeriod) {
+        await DataService.PerDiem.ensureTodaysPerDiem(payPeriodId, payPeriod.per_diem);
+      }
+    } catch (error) {
+      // Silently fail if no pay period exists yet
+      console.log('No pay period to initialize per diem for');
+    }
+  }
+
+  // Check if a new day has started and inform Claude if needed
+  private async checkForNewDay(): Promise<string | null> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // If we haven't processed anything today, or if it's a new day
+    if (this.lastProcessedDate !== today) {
+      const wasNewDay = this.lastProcessedDate !== null; // Only inform if we had a previous day
+      this.lastProcessedDate = today;
+      
+      if (wasNewDay) {
+        // Ensure today's per diem exists (will create with rollover)
+        await this.ensureTodaysPerDiemInitialized();
+        
+        // Get today's per diem status for the message
+        const payPeriodId = this.getPayPeriodId();
+        const payPeriod = await DataService.PayPeriod.getActivePayPeriod(this.getUserId());
+        const todaysPerDiem = await DataService.PerDiem.getTodaysPerDiem(payPeriodId);
+        
+        if (payPeriod && todaysPerDiem) {
+          const rollover = todaysPerDiem.rollover_from_previous || 0;
+          return `A new day has started (${today}). Today's per diem is $${payPeriod.per_diem.toFixed(2)}. ${rollover > 0 ? `You rolled over $${rollover.toFixed(2)} from yesterday, so you have $${todaysPerDiem.remaining_amount.toFixed(2)} available today.` : ''} Don't forget to recalculate per diem for the new day.`;
+        }
+      }
+    }
+    
+    return null;
+  }
+
   // ============================================
   // Chat / Conversation
   // ============================================
 
   // Process user message (main entry point for chat)
   async processMessage(userMessage: string): Promise<AssistantResponse> {
+    // Check for new day first
+    const newDayMessage = await this.checkForNewDay();
+    
+    // Ensure today's per diem is initialized
+    await this.ensureTodaysPerDiemInitialized();
+    
     // Get current budget context
     const context = await this.getBudgetContext();
 
+    // If it's a new day, prepend the new day message to provide context
+    const messageToSend = newDayMessage 
+      ? `${newDayMessage}\n\nUser message: ${userMessage}`
+      : userMessage;
+
     // Send to Claude
-    const response = await claudeService.sendMessage(userMessage, context);
+    const response = await claudeService.sendMessage(messageToSend, context);
 
     // Handle action if present
     if (response.action && response.parsed_transaction) {
@@ -80,7 +137,10 @@ class BudgetService {
         return undefined;
       }
 
+      // Ensure today's per diem exists before getting it
+      await DataService.PerDiem.ensureTodaysPerDiem(payPeriodId, payPeriod.per_diem);
       const todaysPerDiem = await DataService.PerDiem.getTodaysPerDiem(payPeriodId);
+      
       const fourWalls = await DataService.FourWalls.getAllocations(payPeriodId);
       const recentTransactions = await DataService.Transaction.getRecentTransactions(userId, 10);
 
@@ -144,6 +204,12 @@ class BudgetService {
   async logTransaction(parsed: ParsedTransaction): Promise<Transaction> {
     const userId = this.getUserId();
     const payPeriodId = this.getPayPeriodId();
+
+    // Ensure today's per diem exists before logging
+    const payPeriod = await DataService.PayPeriod.getActivePayPeriod(userId);
+    if (payPeriod) {
+      await DataService.PerDiem.ensureTodaysPerDiem(payPeriodId, payPeriod.per_diem);
+    }
 
     // Find or create category
     let category = await DataService.Category.getCategoryByName(parsed.category);
@@ -247,18 +313,42 @@ class BudgetService {
     spentToday: number;
     daysUntilPayday: number;
   }> {
-    const payPeriodId = this.getPayPeriodId();
-    const userId = this.getUserId();
+    try {
+      const userId = this.getUserId();
+      const payPeriod = await DataService.PayPeriod.getActivePayPeriod(userId);
+      
+      if (!payPeriod) {
+        // Return default values if no pay period exists
+        return {
+          perDiem: 0,
+          remaining: 0,
+          spentToday: 0,
+          daysUntilPayday: 0,
+        };
+      }
 
-    const payPeriod = await DataService.PayPeriod.getActivePayPeriod(userId);
-    const todaysPerDiem = await DataService.PerDiem.getTodaysPerDiem(payPeriodId);
+      const payPeriodId = payPeriod.id;
 
-    return {
-      perDiem: payPeriod?.per_diem || 0,
-      remaining: todaysPerDiem?.remaining_amount || payPeriod?.per_diem || 0,
-      spentToday: todaysPerDiem?.spent_today || 0,
-      daysUntilPayday: payPeriod?.days_until_payday || 0,
-    };
+      // Ensure today's per diem exists (will create with rollover if new day)
+      await DataService.PerDiem.ensureTodaysPerDiem(payPeriodId, payPeriod.per_diem);
+      const todaysPerDiem = await DataService.PerDiem.getTodaysPerDiem(payPeriodId);
+
+      return {
+        perDiem: payPeriod.per_diem,
+        remaining: todaysPerDiem?.remaining_amount || payPeriod.per_diem,
+        spentToday: todaysPerDiem?.spent_today || 0,
+        daysUntilPayday: payPeriod.days_until_payday,
+      };
+    } catch (error) {
+      console.error('Error getting today\'s status:', error);
+      // Return default values on error
+      return {
+        perDiem: 0,
+        remaining: 0,
+        spentToday: 0,
+        daysUntilPayday: 0,
+      };
+    }
   }
 
   // Get recent transactions

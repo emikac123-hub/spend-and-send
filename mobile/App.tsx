@@ -3,16 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { colors, typography } from './src/theme/colors';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { TabNavigator } from './src/navigation';
+import { OnboardingNavigator } from './src/navigation/OnboardingNavigator';
+import { ThemeProvider, useTheme } from './src/theme';
+import { database } from './src/database/database';
+import { budgetService } from './src/services/budgetService';
+import DataService from './src/database/dataService';
 
-// TODO: Initialize database on app start
-// import { database } from './src/database';
-// import { budgetService } from './src/services';
-
-export default function App() {
+// Inner app component that uses the theme
+const AppContent: React.FC = () => {
+  const { colors, isDark } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     initializeApp();
@@ -20,13 +24,29 @@ export default function App() {
 
   const initializeApp = async () => {
     try {
-      // TODO: Uncomment when ready to use real database
-      // await database.initialize();
-      // await budgetService.initialize();
+      // Initialize database
+      console.log('Initializing database...');
+      await database.initialize();
       
-      // Simulate initialization for now
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Check if user has completed onboarding
+      const user = await DataService.User.getCurrentUser();
+      if (user) {
+        const onboardingComplete = await DataService.Settings.getSetting(user.id, 'onboarding_complete');
+        if (onboardingComplete === 'true') {
+          // User has completed onboarding, initialize budget service
+          console.log('Initializing budget service...');
+          await budgetService.initialize();
+          setShowOnboarding(false);
+        } else {
+          // User exists but hasn't completed onboarding
+          setShowOnboarding(true);
+        }
+      } else {
+        // No user exists, show onboarding
+        setShowOnboarding(true);
+      }
       
+      console.log('App initialized successfully');
       setIsLoading(false);
     } catch (err) {
       console.error('Failed to initialize app:', err);
@@ -35,14 +55,38 @@ export default function App() {
     }
   };
 
+  const handleOnboardingComplete = async () => {
+    // Reinitialize budget service after onboarding
+    try {
+      await budgetService.initialize();
+      setShowOnboarding(false);
+    } catch (err) {
+      console.error('Error initializing after onboarding:', err);
+      setShowOnboarding(false); // Still hide onboarding
+    }
+  };
+
+  // Custom navigation theme
+  const navigationTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.background,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      primary: colors.primary,
+    },
+  };
+
   // Loading screen
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <StatusBar style="dark" />
-        <Text style={styles.logo}>Spend & Send</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <Text style={[styles.logo, { color: colors.primary }]}>Spend & Send</Text>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Getting ready...</Text>
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Getting ready...</Text>
       </View>
     );
   }
@@ -50,19 +94,32 @@ export default function App() {
   // Error screen
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <StatusBar style="dark" />
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <Text style={[styles.errorText, { color: colors.warning }]}>{error}</Text>
       </View>
     );
   }
 
-  // Main app
+  // Main app with navigation
   return (
-    <>
-      <StatusBar style="light" />
-      <HomeScreen />
-    </>
+    <NavigationContainer theme={navigationTheme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {showOnboarding ? (
+        <OnboardingNavigator onComplete={handleOnboardingComplete} />
+      ) : (
+        <TabNavigator />
+      )}
+    </NavigationContainer>
+  );
+};
+
+// Root component with ThemeProvider
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
@@ -71,29 +128,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
     gap: 20,
   },
   logo: {
-    fontSize: typography.xxl,
-    fontWeight: typography.bold,
-    color: colors.primary,
+    fontSize: 32,
+    fontWeight: '700',
     marginBottom: 20,
   },
   loadingText: {
-    fontSize: typography.md,
-    color: colors.textMuted,
+    fontSize: 16,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
     padding: 20,
   },
   errorText: {
-    fontSize: typography.md,
-    color: colors.warning,
+    fontSize: 16,
     textAlign: 'center',
   },
 });
