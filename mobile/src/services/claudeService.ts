@@ -14,8 +14,8 @@ import {
 // Configuration
 // ============================================
 
-// TODO: Replace with your Vercel proxy URL
-const API_BASE_URL = process.env.CLAUDE_API_URL || 'https://your-vercel-proxy.vercel.app/api';
+// Vercel proxy URL
+const API_BASE_URL = 'https://spend-and-send.vercel.app/api';
 
 // Claude model to use
 const MODEL = 'claude-sonnet-4-20250514';
