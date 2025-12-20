@@ -6,7 +6,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { TabNavigator } from './src/navigation';
 import { OnboardingNavigator } from './src/navigation/OnboardingNavigator';
-import { ThemeProvider, useTheme } from './src/theme';
+import { ThemeProvider, useTheme } from './src/theme/index';
 import { database } from './src/database/database';
 import { budgetService } from './src/services/budgetService';
 import DataService from './src/database/dataService';
