@@ -90,10 +90,12 @@ export const PayPeriodService = {
 
     const id = generateUUID();
     const discretionaryPool = incomeAmount - fourWallsTotal;
-    const daysUntilPayday = Math.ceil(
+    const totalDays = Math.ceil(
       (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
     );
-    const perDiem = discretionaryPool / daysUntilPayday;
+    // Exclude payday itself from the spending window; ensure at least 1 day to avoid divide-by-zero
+    const spendableDays = Math.max(totalDays - 1, 1);
+    const perDiem = discretionaryPool / spendableDays;
 
     const data = {
       id,
@@ -104,7 +106,7 @@ export const PayPeriodService = {
       four_walls_total: fourWallsTotal,
       discretionary_pool: discretionaryPool,
       per_diem: perDiem,
-      days_until_payday: daysUntilPayday,
+      days_until_payday: spendableDays,
       is_active: 1,
     };
     console.log('📝 INSERT INTO pay_periods:', JSON.stringify(data, null, 2));
@@ -112,7 +114,7 @@ export const PayPeriodService = {
       `INSERT INTO pay_periods 
        (id, user_id, start_date, end_date, income_amount, four_walls_total, discretionary_pool, per_diem, days_until_payday, is_active) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      [id, userId, startDate, endDate, incomeAmount, fourWallsTotal, discretionaryPool, perDiem, daysUntilPayday]
+      [id, userId, startDate, endDate, incomeAmount, fourWallsTotal, discretionaryPool, perDiem, spendableDays]
     );
 
     return {
@@ -124,7 +126,7 @@ export const PayPeriodService = {
       four_walls_total: fourWallsTotal,
       discretionary_pool: discretionaryPool,
       per_diem: perDiem,
-      days_until_payday: daysUntilPayday,
+      days_until_payday: spendableDays,
       is_active: true,
       created_at: new Date().toISOString(),
     };
@@ -224,7 +226,7 @@ export const CategoryService = {
 
   async createCategory(
     name: string,
-    type: 'four_walls' | 'discretionary',
+    type: 'predictable_expenses' | 'discretionary',
     userId?: string
   ): Promise<Category> {
     const id = generateUUID();
@@ -274,6 +276,18 @@ export const TransactionService = {
     const result = await database.executeSql(
       'SELECT * FROM transactions WHERE user_id = ? AND transaction_date = ? ORDER BY transaction_time DESC',
       [userId, date]
+    );
+    return result.rows;
+  },
+
+  async getAllTransactions(userId: string): Promise<Transaction[]> {
+    const result = await database.executeSql(
+      `SELECT t.*, c.name as category_name, c.type as category_type
+       FROM transactions t
+       JOIN categories c ON t.category_id = c.id
+       WHERE t.user_id = ?
+       ORDER BY t.transaction_date DESC, t.transaction_time DESC`,
+      [userId]
     );
     return result.rows;
   },
@@ -369,6 +383,20 @@ export const TransactionService = {
        GROUP BY c.id, c.name, c.type
        ORDER BY total DESC`,
       [payPeriodId]
+    );
+    return result.rows;
+  },
+
+  async getHistoricalCategoryTotals(userId: string): Promise<{ name: string; type: string; total: number; count: number }[]> {
+    const result = await database.executeSql(
+      `SELECT c.name, c.type, SUM(t.amount) as total, COUNT(t.id) as count
+       FROM transactions t
+       JOIN categories c ON t.category_id = c.id
+       JOIN pay_periods pp ON t.pay_period_id = pp.id
+       WHERE pp.user_id = ?
+       GROUP BY c.id, c.name, c.type
+       ORDER BY total DESC`,
+      [userId]
     );
     return result.rows;
   },
@@ -503,12 +531,23 @@ export const PerDiemService = {
 
   async addSpending(payPeriodId: string, amount: number): Promise<void> {
     const today = new Date().toISOString().split('T')[0];
+    
+    // Get current state before update
+    const current = await this.getTodaysPerDiem(payPeriodId);
+    const beforeRemaining = current?.remaining_amount || 0;
+    
     await database.executeSql(
       `UPDATE per_diem_tracking 
        SET spent_today = spent_today + ?, remaining_amount = remaining_amount - ?
        WHERE pay_period_id = ? AND tracking_date = ?`,
       [amount, amount, payPeriodId, today]
     );
+    
+    // Verify the update
+    const after = await this.getTodaysPerDiem(payPeriodId);
+    const afterRemaining = after?.remaining_amount || 0;
+    
+    console.log(`📊 Per diem update: $${beforeRemaining.toFixed(2)} → $${afterRemaining.toFixed(2)} (spent $${amount.toFixed(2)})`);
   },
 
   async getDaysUnderOverPerDiem(payPeriodId: string): Promise<{ under: number; over: number; on_target: number }> {
@@ -568,6 +607,34 @@ export const SettingsService = {
 };
 
 // ============================================
+// Goals Operations
+// ============================================
+
+export const GoalsService = {
+  async saveGoals(userId: string, goals: string[]): Promise<void> {
+    // Delete existing goals for this user
+    await database.executeSql('DELETE FROM user_goals WHERE user_id = ?', [userId]);
+    
+    // Insert new goals
+    for (const goal of goals) {
+      const id = generateUUID();
+      await database.executeSql(
+        'INSERT INTO user_goals (id, user_id, goal_text) VALUES (?, ?, ?)',
+        [id, userId, goal]
+      );
+    }
+  },
+
+  async getGoals(userId: string): Promise<string[]> {
+    const result = await database.executeSql(
+      'SELECT goal_text FROM user_goals WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    );
+    return result.rows.map((row: any) => row.goal_text);
+  },
+};
+
+// ============================================
 // Analytics Operations
 // ============================================
 
@@ -602,6 +669,39 @@ export const AnalyticsService = {
 };
 
 // ============================================
+// Utility Operations
+// ============================================
+
+export const UtilityService = {
+  // Clear all user data from the database (keeps default categories)
+  async clearAllData(): Promise<void> {
+    try {
+      console.log('🗑️ Clearing all data from database...');
+      
+      // Delete in order to respect foreign key constraints
+      await database.executeSql('DELETE FROM receipts');
+      await database.executeSql('DELETE FROM per_diem_tracking');
+      await database.executeSql('DELETE FROM transactions');
+      await database.executeSql('DELETE FROM four_walls_allocations');
+      await database.executeSql('DELETE FROM pay_periods');
+      await database.executeSql('DELETE FROM settings');
+      await database.executeSql('DELETE FROM user_goals');
+      
+      // Delete user-created categories (keep default categories)
+      await database.executeSql('DELETE FROM categories WHERE is_default = 0');
+      
+      // Delete users
+      await database.executeSql('DELETE FROM users');
+      
+      console.log('✅ All data cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing data:', error);
+      throw error;
+    }
+  },
+};
+
+// ============================================
 // Export
 // ============================================
 
@@ -613,7 +713,10 @@ const DataService = {
   Transaction: TransactionService,
   PerDiem: PerDiemService,
   Settings: SettingsService,
+  Goals: GoalsService,
   Analytics: AnalyticsService,
+  Utility: UtilityService,
 };
 
 export default DataService;
+

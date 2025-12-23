@@ -147,3 +147,4 @@ await budgetService.logIncome(2400, '2024-02-15', [
 - **react-navigation** - Navigation
 - **react-native-chart-kit** - Charts
 - **date-fns** - Date utilities
+

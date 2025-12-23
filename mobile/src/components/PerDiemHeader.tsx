@@ -37,16 +37,6 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
   const animatedOpacity = useRef(new Animated.Value(isCollapsed ? 0 : 1)).current;
   const collapsedOpacity = useRef(new Animated.Value(isCollapsed ? 1 : 0)).current;
 
-  // Determine status
-  const getStatusText = () => {
-    const ratio = remaining / perDiem;
-    if (ratio >= 1) return 'On track';
-    if (ratio > 0.5) return 'Pacing well';
-    if (ratio > 0.2) return 'Getting tight';
-    if (ratio > 0) return 'Almost there';
-    return 'Over for today';
-  };
-
   // Animate on collapse/expand
   useEffect(() => {
     Animated.parallel([
@@ -137,11 +127,6 @@ export const PerDiemHeader: React.FC<PerDiemHeaderProps> = ({
             <View style={styles.bottomItem}>
               <Text style={[styles.bottomValue, { color: colors.textPrimary }]}>{daysUntilPayday}</Text>
               <Text style={[styles.bottomLabel, { color: colors.textMuted }]}>days left</Text>
-            </View>
-            <View style={[styles.bottomDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.bottomItem}>
-              <Text style={[styles.bottomValue, { color: colors.textPrimary }]}>{getStatusText()}</Text>
-              <Text style={[styles.bottomLabel, { color: colors.textMuted }]}>status</Text>
             </View>
           </View>
 
@@ -279,3 +264,4 @@ const styles = StyleSheet.create({
 });
 
 export default PerDiemHeader;
+

@@ -80,3 +80,4 @@ Send a message to Claude.
 - The proxy handles all Claude API calls server-side
 - CORS is configured to allow requests from any origin (adjust for production)
 - Consider adding rate limiting for production use
+

@@ -42,7 +42,7 @@ CREATE INDEX idx_pay_periods_dates ON pay_periods(start_date, end_date);
 ```
 
 #### 3. `four_walls_allocations`
-Tracks Four Walls funding for each pay period
+Tracks Predictable Expenses funding for each pay period
 
 ```sql
 CREATE TABLE four_walls_allocations (
@@ -178,14 +178,12 @@ CREATE TABLE receipts (
 ### Default Categories
 
 ```sql
--- Four Walls Categories
+-- Predictable Expenses Categories
 INSERT INTO categories (name, type, is_default) VALUES
-('Housing', 'four_walls', 1),
-('Utilities', 'four_walls', 1),
-('Groceries', 'four_walls', 1),
-('Transportation', 'four_walls', 1),
-('Debt', 'four_walls', 1),
-('Savings', 'four_walls', 1);
+('Housing', 'predictable_expenses', 1),
+('Utilities', 'predictable_expenses', 1),
+('Debt', 'predictable_expenses', 1),
+('Savings', 'predictable_expenses', 1);
 
 -- Discretionary Categories
 INSERT INTO categories (name, type, is_default) VALUES

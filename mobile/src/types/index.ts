@@ -40,7 +40,7 @@ export interface Category {
   id: string;
   user_id?: string;
   name: string;
-  type: 'four_walls' | 'discretionary';
+  type: 'predictable_expenses' | 'discretionary';
   is_default: boolean;
   is_active: boolean;
   created_at: string;
@@ -101,7 +101,6 @@ export interface Receipt {
 export type FourWallsCategory = 
   | 'Housing'
   | 'Utilities'
-  | 'Groceries'
   | 'Transportation'
   | 'Debt'
   | 'Savings';
@@ -145,16 +144,23 @@ export interface AssistantResponse {
 }
 
 export interface PeriodSummary {
+  pay_period_id?: string;
   income: number;
+  four_walls_allocated?: number;
   four_walls_total: number;
-  four_walls_breakdown: { category: string; amount: number }[];
-  discretionary_total: number;
-  discretionary_breakdown: { category: string; amount: number }[];
+  four_walls_spent?: number;
+  four_walls_breakdown?: { category: string; amount: number }[];
+  discretionary_pool?: number;
+  discretionary_spent: number;
+  discretionary_total?: number; // Deprecated - use discretionary_spent
+  discretionary_breakdown?: { category: string; amount: number }[];
   per_diem: number;
   per_diem_remaining_today: number;
   days_until_payday: number;
   days_under_per_diem: number;
   days_over_per_diem: number;
+  days_on_target?: number;
+  transaction_count?: number;
 }
 
 export interface ChartConfig {
@@ -174,8 +180,5 @@ export type SettingKey =
   | 'variable_income_mode'
   | 'safety_buffer_amount'
   | 'default_four_walls_housing'
-  | 'default_four_walls_utilities'
-  | 'default_four_walls_groceries'
-  | 'default_four_walls_transportation'
   | 'default_four_walls_debt'
   | 'default_four_walls_savings';

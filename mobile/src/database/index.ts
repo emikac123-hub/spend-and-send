@@ -15,3 +15,4 @@ export {
   SettingsService,
   AnalyticsService,
 } from './dataService';
+

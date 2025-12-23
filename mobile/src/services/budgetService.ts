@@ -154,6 +154,9 @@ class BudgetService {
       // Calculate period discretionary spending
       const discretionarySpentPeriod = await DataService.Transaction.getDiscretionaryTotal(payPeriodId);
 
+      // Get user goals
+      const userGoals = await DataService.Goals.getGoals(userId);
+
       return {
         per_diem: payPeriod.per_diem,
         per_diem_remaining_today: todaysPerDiem?.remaining_amount || payPeriod.per_diem,
@@ -171,6 +174,7 @@ class BudgetService {
           category: (t as any).category_name || '',
           date: t.transaction_date,
         })),
+        user_goals: userGoals.length > 0 ? userGoals : undefined,
       };
     } catch (error) {
       console.error('Error getting budget context:', error);
@@ -217,7 +221,7 @@ class BudgetService {
       // Create new category (discretionary by default)
       category = await DataService.Category.createCategory(
         parsed.category,
-        parsed.is_four_walls ? 'four_walls' : 'discretionary',
+        parsed.is_four_walls ? 'predictable_expenses' : 'discretionary',
         userId
       );
     }
@@ -237,6 +241,7 @@ class BudgetService {
     // Update per diem if discretionary
     if (!parsed.is_four_walls) {
       await DataService.PerDiem.addSpending(payPeriodId, parsed.amount);
+      console.log(`💰 Updated per diem: subtracted $${parsed.amount.toFixed(2)} from today's remaining`);
     }
 
     // Update Four Walls spent if applicable
@@ -312,6 +317,7 @@ class BudgetService {
     remaining: number;
     spentToday: number;
     daysUntilPayday: number;
+    tomorrowPerDiem: number;
   }> {
     try {
       const userId = this.getUserId();
@@ -328,16 +334,44 @@ class BudgetService {
       }
 
       const payPeriodId = payPeriod.id;
+      // Support either snake_case from DB or any camelCase payloads
+      const daysUntilPayday = (payPeriod as any).days_until_payday ?? (payPeriod as any).daysUntilPayday ?? 0;
 
       // Ensure today's per diem exists (will create with rollover if new day)
       await DataService.PerDiem.ensureTodaysPerDiem(payPeriodId, payPeriod.per_diem);
       const todaysPerDiem = await DataService.PerDiem.getTodaysPerDiem(payPeriodId);
 
+      if (!todaysPerDiem) {
+        // If no record exists, return default (shouldn't happen after ensureTodaysPerDiem)
+        console.warn('⚠️ No per diem tracking record found for today');
+        return {
+          perDiem: payPeriod.per_diem,
+          remaining: payPeriod.per_diem,
+          spentToday: 0,
+          daysUntilPayday: payPeriod.days_until_payday,
+        };
+      }
+
+      // Use the remaining_amount from the database - this is today's remaining per diem
+      // NOT the period remaining (discretionary pool)
+      const remaining = todaysPerDiem.remaining_amount;
+      const tomorrowPerDiem = this.calculateTomorrowPerDiem(remaining, daysUntilPayday);
+
+      console.log('📊 getTodaysStatus:', {
+        perDiem: payPeriod.per_diem,
+        remaining,
+        spentToday: todaysPerDiem.spent_today,
+        rollover: todaysPerDiem.rollover_from_previous,
+        calculated: payPeriod.per_diem + (todaysPerDiem.rollover_from_previous || 0) - todaysPerDiem.spent_today,
+        tomorrowPerDiem,
+      });
+
       return {
         perDiem: payPeriod.per_diem,
-        remaining: todaysPerDiem?.remaining_amount || payPeriod.per_diem,
-        spentToday: todaysPerDiem?.spent_today || 0,
-        daysUntilPayday: payPeriod.days_until_payday,
+        remaining, // Today's remaining per diem from database
+        spentToday: todaysPerDiem.spent_today,
+        daysUntilPayday,
+        tomorrowPerDiem,
       };
     } catch (error) {
       console.error('Error getting today\'s status:', error);
@@ -347,6 +381,7 @@ class BudgetService {
         remaining: 0,
         spentToday: 0,
         daysUntilPayday: 0,
+        tomorrowPerDiem: 0,
       };
     }
   }
@@ -415,6 +450,28 @@ class BudgetService {
     const userId = this.getUserId();
     return DataService.Settings.getAllSettings(userId);
   }
+
+  // ============================================
+  // Per diem helpers (single source of truth)
+  // ============================================
+
+  /**
+   * Calculate per diem given discretionary pool and spendable days (payday excluded).
+   * Ensures no divide-by-zero by flooring at 1 day.
+   */
+  private calculatePerDiem(discretionaryPool: number, daysUntilPayday: number): number {
+    const spendableDays = Math.max(daysUntilPayday, 1);
+    return discretionaryPool / spendableDays;
+  }
+
+  /**
+   * Calculate tomorrow's per diem given today's remaining and days until payday.
+   * Uses remaining days starting tomorrow (i.e., daysUntilPayday - 1, floored at 1).
+   */
+  private calculateTomorrowPerDiem(remainingToday: number, daysUntilPayday: number): number {
+    const remainingDays = Math.max(daysUntilPayday - 1, 1);
+    return remainingToday / remainingDays;
+  }
 }
 
 // ============================================
@@ -423,3 +480,4 @@ class BudgetService {
 
 export const budgetService = new BudgetService();
 export default budgetService;
+

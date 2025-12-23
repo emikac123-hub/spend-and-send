@@ -27,8 +27,8 @@ const MODEL = 'claude-sonnet-4-20250514';
 const SYSTEM_PROMPT = `You are Spend & Send, a calm, practical budgeting assistant. Your job is to help the user track spending through short conversational messages, organize it into a simple budget, and guide them using the Spend & Send Method.
 
 ## The Spend & Send Method
-- **Four Walls First:** Housing, Utilities, Groceries (food at home), Transportation, Debt, Savings. These are protected and non-negotiable.
-- **Discretionary Pool:** Money remaining after Four Walls are funded for the pay period.
+- **Predictable Expenses First:** Housing, Utilities, Debt, Savings, subscriptions, bills, and any other predictable payments. These are protected and non-negotiable.
+- **Discretionary Pool:** Money remaining after Predictable Expenses are funded for the pay period.
 - **Per Diem:** Discretionary Pool ÷ Days until payday. If the user stays under their per diem over time, they won't hit zero.
 
 ## Core Principles
@@ -37,6 +37,7 @@ const SYSTEM_PROMPT = `You are Spend & Send, a calm, practical budgeting assista
 - Do not give professional financial, tax, or legal advice. Provide budgeting guidance only.
 - Prefer simple defaults and consistency over complexity.
 - Always keep a transparent ledger: what you recorded, where it went, and why.
+- When providing advice, consider the user's financial goals (if provided) and tailor guidance to help them achieve those goals.
 
 ## Response Format
 Always respond with valid JSON matching this structure:
@@ -50,7 +51,7 @@ Always respond with valid JSON matching this structure:
     "merchant": "string or null",
     "date": "YYYY-MM-DD",
     "type": "income" | "expense" | "four_walls",
-    "is_four_walls": boolean,
+    "is_four_walls": boolean, // Note: This flag indicates if transaction is predictable expense
     "confidence": number (0-1)
   } | null,
   "insight": "Optional insight about spending patterns" | null,
@@ -64,13 +65,13 @@ Always respond with valid JSON matching this structure:
 
 ## Categorization Rules
 Default categories:
-- **Four Walls:** Housing, Utilities, Groceries, Transportation, Debt, Savings
+- **Predictable Expenses (Four Walls):** Housing, Utilities, Transportation, Debt, Savings
 - **Discretionary:** Dining, Coffee, Shopping, Entertainment, Subscriptions, Health, Personal, Kids/Family, Pets, Gifts, Travel, Misc
 
 Rules:
 - Always prefer an existing category
 - Do not create "micro-categories" (e.g., "Morning Coffee", "Gas Station Snacks")
-- If ambiguous, ask a quick either/or: "Dining or Groceries?"
+- If ambiguous, ask a quick either/or: "Dining or Shopping?"
 - Map common merchants to categories (Starbucks → Coffee, McDonald's → Dining)
 
 ## Transaction Logging
@@ -100,8 +101,9 @@ interface BudgetContext {
   days_until_payday: number;
   discretionary_spent_today: number;
   discretionary_spent_period: number;
-  four_walls_status: { category: string; allocated: number; spent: number }[];
+  four_walls_status: { category: string; allocated: number; spent: number }[]; // Predictable Expenses status
   recent_transactions: { amount: number; description: string; category: string; date: string }[];
+  user_goals?: string[]; // User's financial goals from onboarding
 }
 
 // ============================================
@@ -165,11 +167,14 @@ class ClaudeService {
 - Spent today (discretionary): $${context.discretionary_spent_today.toFixed(2)}
 - Spent this period (discretionary): $${context.discretionary_spent_period.toFixed(2)}
 
-[Four Walls Status]
+[Predictable Expenses Status]
 ${context.four_walls_status.map(fw => 
   `- ${fw.category}: $${fw.spent.toFixed(2)} / $${fw.allocated.toFixed(2)}`
 ).join('\n')}
 
+${context.user_goals && context.user_goals.length > 0 ? `[User Financial Goals]
+${context.user_goals.map(goal => `- ${goal}`).join('\n')}
+` : ''}
 [Recent Transactions]
 ${context.recent_transactions.slice(0, 5).map(t => 
   `- $${t.amount.toFixed(2)} — ${t.description} — ${t.category} (${t.date})`
@@ -209,32 +214,24 @@ ${userMessage}`;
       console.log('Claude response:', data);
 
       // Extract the text content from Claude's response
-      const textContent = data.content?.[0]?.text;
+      const rawTextContent = data.content?.[0]?.text;
       
-      if (!textContent) {
+      if (!rawTextContent) {
         throw new Error('No text content in response');
       }
 
-      // Try to parse as JSON (structured response)
-      try {
-        const parsed = JSON.parse(textContent);
-        return {
-          message: parsed.message || textContent,
-          action: parsed.action || undefined,
-          parsed_transaction: parsed.parsed_transaction || undefined,
-          insight: parsed.insight || undefined,
-          chart_config: parsed.chart_config || undefined,
-        };
-      } catch {
-        // If not valid JSON, return as plain message
-        return {
-          message: textContent,
-          action: undefined,
-          parsed_transaction: undefined,
-          insight: undefined,
-          chart_config: undefined,
-        };
-      }
+      const textContent = this.stripCodeFences(rawTextContent.trim());
+
+      // Try to parse as JSON (structured response); fall back to plain text if parsing fails.
+      const parsed = this.tryParseJson(textContent);
+
+      return {
+        message: parsed?.message || textContent,
+        action: parsed?.action || undefined,
+        parsed_transaction: parsed?.parsed_transaction || undefined,
+        insight: parsed?.insight || undefined,
+        chart_config: parsed?.chart_config || undefined,
+      };
     } catch (error) {
       console.error('Claude API call failed:', error);
       // Return a friendly error message
@@ -269,8 +266,8 @@ ${userMessage}`;
     const summaryMessage = `Generate a summary of my current pay period:
     
 Income: $${summary.income}
-Four Walls Total: $${summary.four_walls_total}
-Discretionary Total: $${summary.discretionary_total}
+Predictable Expenses Total: $${summary.four_walls_total}
+Discretionary Spent: $${summary.discretionary_spent}
 Per Diem: $${summary.per_diem}
 Remaining Today: $${summary.per_diem_remaining_today}
 Days Until Payday: ${summary.days_until_payday}
@@ -306,6 +303,27 @@ ${summary.discretionary_breakdown.slice(0, 5).map(c =>
   // Get current conversation history
   getHistory(): ClaudeMessage[] {
     return [...this.conversationHistory];
+  }
+
+  // Remove leading/trailing code fences (e.g., ```json ... ```) to avoid rendering JSON blocks
+  private stripCodeFences(text: string): string {
+    if (text.startsWith('```')) {
+      // Remove leading fence and optional language
+      const withoutLeading = text.replace(/^```[a-zA-Z]*\n?/, '');
+      // Remove trailing fence
+      const withoutTrailing = withoutLeading.replace(/```$/, '');
+      return withoutTrailing.trim();
+    }
+    return text;
+  }
+
+  // Safely attempt JSON parsing; return null if it fails
+  private tryParseJson(text: string): any | null {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -351,3 +369,4 @@ export async function POST(request: NextRequest) {
 
 export const claudeService = new ClaudeService();
 export default claudeService;
+

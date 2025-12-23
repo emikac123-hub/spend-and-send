@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY,
     user_id TEXT,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('four_walls', 'discretionary')),
+    type TEXT NOT NULL CHECK (type IN ('predictable_expenses', 'discretionary')),
     is_default INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type);
 CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    pay_period_id TEXT NOT NULL,
+      pay_period_id TEXT NOT NULL,
     category_id TEXT NOT NULL,
     amount REAL NOT NULL,
     description TEXT,
@@ -142,6 +142,18 @@ CREATE TABLE IF NOT EXISTS receipts (
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (transaction_id) REFERENCES transactions(id)
 );
+
+-- User Goals Table
+CREATE TABLE IF NOT EXISTS user_goals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    goal_text TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_goals_user ON user_goals(user_id);
 `;
 
 // ============================================
@@ -149,15 +161,14 @@ CREATE TABLE IF NOT EXISTS receipts (
 // ============================================
 
 export const DEFAULT_CATEGORIES = [
-  // Four Walls
-  { name: 'Housing', type: 'four_walls' },
-  { name: 'Utilities', type: 'four_walls' },
-  { name: 'Groceries', type: 'four_walls' },
-  { name: 'Transportation', type: 'four_walls' },
-  { name: 'Debt', type: 'four_walls' },
-  { name: 'Savings', type: 'four_walls' },
+  // Predictable Expenses
+  { name: 'Housing', type: 'predictable_expenses' },
+  { name: 'Utilities', type: 'predictable_expenses' },
+  { name: 'Debt', type: 'predictable_expenses' },
+  { name: 'Savings', type: 'predictable_expenses' },
   // Discretionary
   { name: 'Dining', type: 'discretionary' },
+  { name: 'Transportation', type: 'discretionary' },
   { name: 'Coffee', type: 'discretionary' },
   { name: 'Shopping', type: 'discretionary' },
   { name: 'Entertainment', type: 'discretionary' },

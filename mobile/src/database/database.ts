@@ -208,3 +208,4 @@ class Database {
 // Export singleton instance
 export const database = new Database();
 export default database;
+
