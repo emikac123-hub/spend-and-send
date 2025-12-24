@@ -145,6 +145,21 @@ export const PayPeriodService = {
     const result = await database.executeSql('SELECT * FROM pay_periods WHERE id = ?', [id]);
     return result.rows[0] || null;
   },
+
+  async isPayPeriodExpired(payPeriodId: string): Promise<boolean> {
+    const payPeriod = await this.getPayPeriodById(payPeriodId);
+    if (!payPeriod) return true;
+    const today = new Date().toISOString().split('T')[0];
+    return today > payPeriod.end_date;
+  },
+
+  async getLastPayPeriod(userId: string): Promise<PayPeriod | null> {
+    const result = await database.executeSql(
+      'SELECT * FROM pay_periods WHERE user_id = ? ORDER BY end_date DESC LIMIT 1',
+      [userId]
+    );
+    return result.rows[0] || null;
+  },
 };
 
 // ============================================
@@ -158,6 +173,25 @@ export const FourWallsService = {
       [payPeriodId]
     );
     return result.rows;
+  },
+
+  async copyAllocationsFromPeriod(
+    fromPayPeriodId: string,
+    toPayPeriodId: string
+  ): Promise<FourWallsAllocation[]> {
+    const sourceAllocations = await this.getAllocations(fromPayPeriodId);
+    const copiedAllocations: FourWallsAllocation[] = [];
+
+    for (const allocation of sourceAllocations) {
+      const newAllocation = await this.createAllocation(
+        toPayPeriodId,
+        allocation.category as any,
+        allocation.allocated_amount
+      );
+      copiedAllocations.push(newAllocation);
+    }
+
+    return copiedAllocations;
   },
 
   async createAllocation(

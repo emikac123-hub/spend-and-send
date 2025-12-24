@@ -10,6 +10,7 @@ import { ThemeProvider, useTheme } from './src/theme/index';
 import { database } from './src/database/database';
 import { budgetService } from './src/services/budgetService';
 import DataService from './src/database/dataService';
+import { NewPayPeriodScreen } from './src/screens/NewPayPeriodScreen';
 
 // Inner app component that uses the theme
 const AppContent: React.FC = () => {
@@ -17,6 +18,7 @@ const AppContent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showNewPayPeriod, setShowNewPayPeriod] = useState(false);
 
   useEffect(() => {
     initializeApp();
@@ -33,10 +35,23 @@ const AppContent: React.FC = () => {
       if (user) {
         const onboardingComplete = await DataService.Settings.getSetting(user.id, 'onboarding_complete');
         if (onboardingComplete === 'true') {
-          // User has completed onboarding, initialize budget service
+          // User has completed onboarding, check if pay period is expired
           console.log('Initializing budget service...');
           await budgetService.initialize();
-          setShowOnboarding(false);
+          
+          // Check if current pay period is expired
+          const activePeriod = await DataService.PayPeriod.getActivePayPeriod(user.id);
+          if (activePeriod) {
+            const isExpired = await DataService.PayPeriod.isPayPeriodExpired(activePeriod.id);
+            if (isExpired) {
+              setShowNewPayPeriod(true);
+            } else {
+              setShowOnboarding(false);
+            }
+          } else {
+            // No active period, show new pay period screen
+            setShowNewPayPeriod(true);
+          }
         } else {
           // User exists but hasn't completed onboarding
           setShowOnboarding(true);
@@ -63,6 +78,17 @@ const AppContent: React.FC = () => {
     } catch (err) {
       console.error('Error initializing after onboarding:', err);
       setShowOnboarding(false); // Still hide onboarding
+    }
+  };
+
+  const handleNewPayPeriodComplete = async () => {
+    // Reinitialize budget service after new pay period
+    try {
+      await budgetService.initialize();
+      setShowNewPayPeriod(false);
+    } catch (err) {
+      console.error('Error initializing after new pay period:', err);
+      setShowNewPayPeriod(false); // Still hide new pay period screen
     }
   };
 
@@ -107,6 +133,8 @@ const AppContent: React.FC = () => {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {showOnboarding ? (
         <OnboardingNavigator onComplete={handleOnboardingComplete} />
+      ) : showNewPayPeriod ? (
+        <NewPayPeriodScreen onComplete={handleNewPayPeriodComplete} />
       ) : (
         <TabNavigator />
       )}
